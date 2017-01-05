@@ -1,0 +1,67 @@
+#
+# (c) Copyright 2016-2017 Hewlett Packard Enterprise Development LP
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+---
+
+- name: alexandria | install | Install apt dependancies
+  become: yes
+  apt:
+    state: latest
+    name: "python-httplib2"
+
+- name: alexandria | install | Update venv cache
+  become: yes
+  install_package:
+    cache: update
+
+- name: alexandria | install | Install Alexandria
+  become: yes
+  install_package:
+    name: alexandria
+    service: alexandria
+    state: present
+    activate: act_on
+
+- name: alexandria | install | Set directories facts
+  set_fact:
+    alexandria_conf_dir: "{{ 'alexandria' | config_dir() }}"
+    alexandria_bin_dir: "{{ 'alexandria' | bin_dir() }}"
+
+- name: alexandria | install | Register Alexandria with systemd
+  become: yes
+  setup_systemd:
+    service: "alexandria"
+    cmd: "alexandria"
+    user: "{{ alexandria_user }}"
+    group: "{{ alexandria_group }}"
+    args: "--config {{ alexandria_conf_dir }}/alexandria.conf"
+
+- name: alexandria | install | Create Alexandria log directory
+  become: yes
+  file:
+    path: "/var/log/alexandria"
+    owner: "{{ alexandria_user }}"
+    group: "{{ alexandria_group }}"
+    mode: 0750
+    state: directory
+
+- name: alexandria | install | Create Alexandria log file
+  become: yes
+  file:
+    path: "/var/log/alexandria/alexandria.log"
+    owner: "{{ alexandria_user }}"
+    group: "{{ alexandria_group }}"
+    mode: 0640
+    state: touch

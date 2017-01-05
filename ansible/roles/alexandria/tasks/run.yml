@@ -1,0 +1,68 @@
+#
+# (c) Copyright 2016-2017 Hewlett Packard Enterprise Development LP
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+---
+
+- name: alexandria | run | Load servers informations
+  include_vars: "~/scratch/ansible/next/my_cloud/definition/data/servers.yml"
+
+- name: alexandria | run | Verify ilo-ip is specified for all servers in servers.yml
+  fail:
+    msg: "The server {{ item.id }} does not specify the field ilo-ip."
+  with_items: "{{ servers }}"
+  when: item['ilo-ip'] | default("") | trim() == ""
+
+- name: alexandria | run | Verify ilo-user is specified for all servers in servers.yml
+  fail:
+    msg: "The server {{ item.id }} does not specify the field ilo-user."
+  with_items: "{{ servers }}"
+  when: item['ilo-user'] | default("") | trim() == ""
+
+- name: alexandria | run | Verify ilo-password is specified for all servers in servers.yml
+  fail:
+    msg: "The server {{ item.id }} does not specify the field ilo-password."
+  with_items: "{{ servers }}"
+  when: item['ilo-password'] | default("") | trim() == ""
+
+- name: alexandria | run | Start Alexandria
+  become: yes
+  service:
+    name: alexandria
+    state: restarted
+
+- name: alexandria | run | Verify Alexandria is available
+  uri:
+    url: "http://127.0.0.1:{{ alexandria_port }}"
+    status_code: 200
+    ignore_errors: yes
+  register: alexandria_api_status
+  until: not alexandria_api_status | failed
+  retries: 10
+  delay: 2
+
+- name: alexandria | run | Push request to Alexandria for each server
+  uri:
+    url: "http://127.0.0.1:{{ alexandria_port }}/ci"
+    method: "POST"
+    HEADER_Content-Type: application/json
+    body: ' { "url_mgmt": "https://{{ item["ilo-ip"] }}/rest/v1/", "login": "{{ item["ilo-user"] }}", "password": "{{ item["ilo-password"] }}", "uuid": "https://{{ item["ilo-ip"] }}/rest/v1/" } '
+    body_format: json
+  with_items: "{{ servers }}"
+
+- name: alexandria | run | Stop Alexandria
+  become: yes
+  service:
+    name: alexandria
+    state: stopped
